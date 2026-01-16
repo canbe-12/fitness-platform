@@ -1,31 +1,33 @@
 import { http } from './http'
 import type { ApiEnvelope } from '@/types/common'
 
-export interface ExerciseSetReq {
-  reps: number
-  weightKg: number
-}
-
 export interface CreateExerciseLogReq {
+  exerciseId: number
+  plannedDate: string
+  actualWeight: number
+  actualReps: number
+  plannedWeight?: number
+  plannedReps?: number
   clientRequestId: string
-  date: string // YYYY-MM-DD
-  exerciseName: string
-  muscleGroup?: string
-  sets: ExerciseSetReq[]
-  note?: string
+  notes?: string
 }
 
 export interface ExerciseLogResp {
   id: number
-  date: string
-  exerciseName: string
-  muscleGroup?: string
-  sets: ExerciseSetReq[]
-  note?: string
+  exerciseId: number
+  plannedDate: string
+  actualWeight: number
+  actualReps: number
+  plannedWeight?: number
+  plannedReps?: number
+  clientRequestId?: string
+  notes?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export function apiCreateExerciseLog(payload: CreateExerciseLogReq) {
-  return http.post<ApiEnvelope<{ id: number; date: string }>>('/api/exercise-logs', payload)
+  return http.post<ApiEnvelope<ExerciseLogResp>>('/api/exercise-logs', payload)
 }
 
 export function apiListExerciseLogs() {

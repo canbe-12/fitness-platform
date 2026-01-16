@@ -1,68 +1,58 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import {createRouter, createWebHistory, type RouteRecordRaw} from 'vue-router'
 import AppLayout from '@/layouts/AppLayout.vue'
 
-import LoginPage from '@/pages/auth/LoginPage.vue'
-import RegisterPage from '@/pages/auth/RegisterPage.vue'
+const routes: RouteRecordRaw[] = [
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/pages/auth/LoginPage.vue'),
+    meta: { title: '登录' },
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/pages/auth/RegisterPage.vue'),
+    meta: { title: '注册' },
+  },
 
-import DashboardPage from '@/pages/dashboard/DashboardPage.vue'
+  {
+    path: '/',
+    component: AppLayout,
+    redirect: '/dashboard',
+    children: [
+      { path: 'dashboard', name: 'Dashboard', component: () => import('@/pages/dashboard/DashboardPage.vue') },
 
-import DietSubmitPage from '@/pages/diet/DietSubmitPage.vue'
-import DietHistoryPage from '@/pages/diet/DietHistoryPage.vue'
+      { path: 'workout', redirect: '/workout/submit' },
+      { path: 'workout/submit', name: 'WorkoutSubmit', component: () => import('@/pages/workout/WorkoutSubmitPage.vue') },
+      { path: 'workout/history', name: 'WorkoutHistory', component: () => import('@/pages/workout/WorkoutHistoryPage.vue') },
 
-import WorkoutSubmitPage from '@/pages/workout/WorkoutSubmitPage.vue'
-import WorkoutHistoryPage from '@/pages/workout/WorkoutHistoryPage.vue'
+      { path: 'diet', redirect: '/diet/submit' },
+      { path: 'diet/submit', name: 'DietSubmit', component: () => import('@/pages/diet/DietSubmitPage.vue') },
+      { path: 'diet/history', name: 'DietHistory', component: () => import('@/pages/diet/DietHistoryPage.vue') },
 
-import PlanTodayPage from '@/pages/plan/PlanTodayPage.vue'
-import PlanCalendarPage from '@/pages/plan/PlanCalendarPage.vue'
+      { path: 'report/weekly', name: 'ReportWeekly', component: () => import('@/pages/report/ReportWeeklyPage.vue') },
 
-import BodyTrendPage from '@/pages/body/BodyTrendPage.vue'
-import ReportWeeklyPage from '@/pages/report/ReportWeeklyPage.vue'
-import SettingsPage from '@/pages/settings/SettingsPage.vue'
+      { path: 'plan', redirect: '/plan/today' },
+      { path: 'plan/today', name: 'PlanToday', component: () => import('@/pages/plan/PlanTodayPage.vue') },
+      { path: 'plan/calendar', name: 'PlanCalendar', component: () => import('@/pages/plan/PlanCalendarPage.vue') },
 
-import { useAuthStore } from '@/stores/auth'
+      { path: 'body/trend', name: 'BodyTrend', component: () => import('@/pages/body/BodyTrendPage.vue') },
+
+      { path: 'settings/profile', name: 'Settings', component: () => import('@/pages/settings/SettingsPage.vue') },
+    ],
+  },
+
+  { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
+]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes: [
-    { path: '/', redirect: '/dashboard' },
-
-    { path: '/login', name: 'Login', component: LoginPage },
-    { path: '/register', name: 'Register', component: RegisterPage },
-
-    {
-      path: '/',
-      component: AppLayout,
-      children: [
-        { path: 'dashboard', name: 'Dashboard', component: DashboardPage },
-
-        { path: 'workout/submit', name: 'WorkoutSubmit', component: WorkoutSubmitPage },
-        { path: 'workout/history', name: 'WorkoutHistory', component: WorkoutHistoryPage },
-
-        { path: 'diet/submit', name: 'DietSubmit', component: DietSubmitPage },
-        { path: 'diet/history', name: 'DietHistory', component: DietHistoryPage },
-
-        { path: 'plan/today', name: 'PlanToday', component: PlanTodayPage },
-        { path: 'plan/calendar', name: 'PlanCalendar', component: PlanCalendarPage },
-
-        { path: 'body/trend', name: 'BodyTrend', component: BodyTrendPage },
-
-        { path: 'report/weekly', name: 'ReportWeekly', component: ReportWeeklyPage },
-
-        { path: 'settings', name: 'Settings', component: SettingsPage },
-
-        ],
-    },
-
-    { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
-  ],
+  routes,
 })
 
-router.beforeEach((to) => {
-  const auth = useAuthStore()
-  const publicPages = ['/login', '/register']
-  if (publicPages.includes(to.path)) return true
-  if (!auth.token) return '/login'
-  return true
+router.afterEach((to) => {
+  const title = to.meta?.title as string | undefined
+  if (title) document.title = `${title} - 智能健身助手`
 })
 
 export default router
