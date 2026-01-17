@@ -1,5 +1,6 @@
 package com.example.fitnessplatformbackend.controller;
 
+import com.example.fitnessplatformbackend.dto.common.ApiResponse;
 import com.example.fitnessplatformbackend.dto.plan.PlanResponse;
 import com.example.fitnessplatformbackend.dto.plan.PlanUpsertRequest;
 import com.example.fitnessplatformbackend.service.PlanService;
@@ -17,14 +18,14 @@ public class PlanController {
     private final SecurityCurrentUserService currentUser;
 
     @GetMapping("/current")
-    public PlanResponse getCurrent() {
+    public ApiResponse<PlanResponse> getCurrent() {
         Long userId = currentUser.getCurrentUserId();
-        return planService.getCurrent(userId);
+        return ApiResponse.ok(planService.getCurrent(userId));
     }
 
     @PutMapping("/current")
-    public PlanResponse upsert(@Valid @RequestBody PlanUpsertRequest req) {
+    public ApiResponse<PlanResponse> upsert(@Valid @RequestBody PlanUpsertRequest req) {
         Long userId = currentUser.getCurrentUserId();
-        return planService.upsertCurrent(userId, req);
+        return ApiResponse.ok(planService.upsertCurrent(userId, req));
     }
 }

@@ -1,12 +1,17 @@
 <template>
   <el-card class="qcard" shadow="never" @click="$emit('click')">
-    <div class="t">{{ title }}</div>
-    <div class="d">{{ desc }}</div>
+    <div class="row">
+      <img v-if="icon" :src="icon" alt="" class="icon" />
+      <div class="content">
+        <div class="t">{{ title }}</div>
+        <div class="d">{{ desc }}</div>
+      </div>
+    </div>
   </el-card>
-</template>
+  </template>
 
 <script setup lang="ts">
-defineProps<{ title: string; desc: string }>()
+defineProps<{ title: string; desc: string; icon?: string }>()
 defineEmits<{ (e: 'click'): void }>()
 </script>
 
@@ -17,6 +22,13 @@ defineEmits<{ (e: 'click'): void }>()
   transition: transform .08s ease;
 }
 .qcard:hover { transform: translateY(-2px); }
-.t { font-size: 20px; font-weight: 900; }
-.d { margin-top: 6px; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 14px; }
+.icon { width: 40px; height: 40px; filter: drop-shadow(0 4px 10px rgba(34,211,238,.25)); }
+.content { display: flex; flex-direction: column; }
+.t { font-size: 18px; font-weight: 800; }
+.d { margin-top: 4px; color: var(--muted); }
+
+@media (max-width: 720px) {
+  .icon { width: 32px; height: 32px; }
+}
 </style>

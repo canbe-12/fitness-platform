@@ -241,6 +241,26 @@ CREATE TABLE `body_measurement` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================================================
+-- 10) scheduled_task (每日计划任务)
+-- =========================================================
+CREATE TABLE `scheduled_task` (
+    `id`          BIGINT NOT NULL AUTO_INCREMENT,
+    `user_id`     BIGINT NOT NULL,
+    `task_date`   DATE   NOT NULL,
+    `title`       VARCHAR(100) NOT NULL,
+    `description` VARCHAR(255) NULL,
+    `status`      VARCHAR(20)  NOT NULL DEFAULT 'PENDING', -- PENDING, IN_PROGRESS, COMPLETED
+    `priority`    INT          NOT NULL DEFAULT 0,         -- 排序用
+    `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_task_user_date` (`user_id`, `task_date`),
+    CONSTRAINT `fk_task_user`
+        FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =========================================================
 -- seed (可选：给点基础数据，方便 swagger 直接测)
 -- =========================================================
 INSERT INTO `exercise` (`name`,`muscle_group`,`equipment`,`default_target_weight`,`default_target_reps`,`met`)

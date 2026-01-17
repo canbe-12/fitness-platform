@@ -34,9 +34,9 @@ export function apiListExerciseLogs() {
   return http.get<ApiEnvelope<ExerciseLogResp[]>>('/api/exercise-logs')
 }
 
-export function apiRangeExerciseLogs(startDate: string, endDate: string) {
+export function apiRangeExerciseLogs(from: string, to: string) {
   return http.get<ApiEnvelope<ExerciseLogResp[]>>('/api/exercise-logs/range', {
-    params: { startDate, endDate },
+    params: { from, to },
   })
 }
 

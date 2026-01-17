@@ -74,10 +74,25 @@ export function apiDeleteDietLog(id: number) {
   return http.delete<ApiEnvelope<null>>(`/api/diet-logs/${id}`)
 }
 
+export interface DietLogDayResp {
+  date: string
+  meals: Array<{
+    id: number
+    mealType: MealType
+    kcal: number
+    proteinG: number
+    carbG: number
+    fatG: number
+  }>
+  dayTotal: DietNutritionSnapshot
+  target?: DietNutritionSnapshot
+}
+
 export async function apiGetDietLogsByDay(date: string) {
-  const res = await http.get<ApiEnvelope<any>>('/api/diet-logs/day', { params: { date } })
-  const list = normalizeToList<DietLogResp>(res.data.data)
-  return { raw: res, list }
+  const res = await http.get<ApiEnvelope<DietLogDayResp>>('/api/diet-logs/day', { params: { date } })
+  // Backend returns DietLogDayResponse object, not a list of logs directly.
+  // We return the raw data so the caller can handle 'meals', 'dayTotal', 'target'.
+  return res
 }
 
 export async function apiGetDietLogsRange(params: { start: string; end: string }) {

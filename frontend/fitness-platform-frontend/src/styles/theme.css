@@ -1,0 +1,68 @@
+/* 全局主题与基础样式（现代化 UI 配色与排版）
+   - 提供一致的色板、阴影、圆角与过渡
+   - 响应 prefers-reduced-motion，降低动画强度
+*/
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --text: #0f172a;
+  --muted: #64748b;
+  --primary: #3b82f6;
+  --primary-600: #2563eb;
+  --primary-700: #1d4ed8;
+  --accent: #06b6d4;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --card-radius: 18px;
+  --radius: 12px;
+  --shadow-1: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-2: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  --ring: 0 0 0 2px rgba(59,130,246,0.35);
+  --transition: 180ms cubic-bezier(.2,.6,.2,1);
+}
+
+html, body, #app {
+  height: 100%;
+  background: #f8fafc;
+  color: var(--text);
+}
+
+/* 通用容器与留白 */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* 卡片基线 */
+.card-base {
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  border: 1px solid #e2e8f0;
+}
+
+/* 渐变标题样式 */
+.gradient-title {
+  font-weight: 900;
+  letter-spacing: .2px;
+  background: linear-gradient(90deg, #1e293b 0%, #3b82f6 50%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 平滑过渡与动效优化 */
+* {
+  transition: all var(--transition);
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+

@@ -13,6 +13,7 @@ public class DietLogDayResponse {
     private LocalDate date;
     private List<MealSummary> meals;
     private NutritionSnapshotDto dayTotal;
+    private NutritionSnapshotDto target; // from Plan
 
     @Data
     @AllArgsConstructor

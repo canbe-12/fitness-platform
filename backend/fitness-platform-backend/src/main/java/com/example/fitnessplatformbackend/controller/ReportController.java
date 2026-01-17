@@ -1,6 +1,7 @@
 package com.example.fitnessplatformbackend.controller;
 
 import com.example.fitnessplatformbackend.dto.common.ApiResponse;
+import com.example.fitnessplatformbackend.dto.report.ComprehensiveReportResponse;
 import com.example.fitnessplatformbackend.dto.report.WeeklyReportResponse;
 import com.example.fitnessplatformbackend.security.SecurityUtils;
 import com.example.fitnessplatformbackend.service.ReportService;
@@ -21,4 +22,12 @@ public class ReportController {
         return ApiResponse.ok(reportService.weekly(uid, weekStart));
     }
 
+    @GetMapping("/comprehensive")
+    public ApiResponse<ComprehensiveReportResponse> comprehensive(
+            @RequestParam LocalDate start,
+            @RequestParam LocalDate end
+    ) {
+        Long uid = SecurityUtils.currentUserId();
+        return ApiResponse.ok(reportService.comprehensive(uid, start, end));
+    }
 }

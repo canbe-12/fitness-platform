@@ -83,5 +83,5 @@ async function onSubmit() {
 .row { display: flex; gap: 10px; }
 .col { flex: 1; }
 .actions { margin-top: 12px; }
-.result { margin-top: 12px; background: #0b1020; color: #d1d5db; padding: 12px; border-radius: 10px; overflow: auto; }
+.result { margin-top: 12px; background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 10px; overflow: auto; }
 </style>

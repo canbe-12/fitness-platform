@@ -5,11 +5,13 @@ import com.example.fitnessplatformbackend.entity.DietLogEntity;
 import com.example.fitnessplatformbackend.entity.DietLogItemEntity;
 import com.example.fitnessplatformbackend.repository.DietLogRepository;
 import com.example.fitnessplatformbackend.repository.FoodRepository;
+import com.example.fitnessplatformbackend.repository.UserPlanRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +22,7 @@ public class DietLogService {
 
     private final DietLogRepository dietLogRepository;
     private final FoodRepository foodRepository;
+    private final UserPlanRepository userPlanRepository;
 
     @Transactional
     public DietLogCreateResponse createOrGet(Long userId, DietLogCreateRequest req) {
@@ -109,7 +112,30 @@ public class DietLogService {
         total.setFiberG(sumDecimal(logs.stream().map(DietLogEntity::getFiberG).toList()));
         total.setSodiumMg(logs.stream().mapToInt(DietLogEntity::getSodiumMg).sum());
 
-        return new DietLogDayResponse(date, meals, total);
+        // Get Target from Plan
+        NutritionSnapshotDto target = new NutritionSnapshotDto();
+        userPlanRepository.findByUserId(userId).ifPresent(plan -> {
+            target.setKcal(plan.getDailyKcalTarget());
+            target.setProteinG(plan.getProteinTargetG());
+            
+            // Estimate Carb (50%) and Fat (30%) based on Kcal
+            // 1g Carb = 4kcal, 1g Fat = 9kcal
+            if (plan.getDailyKcalTarget() != null) {
+                BigDecimal kcal = new BigDecimal(plan.getDailyKcalTarget());
+                
+                // Carb: (kcal * 0.5) / 4
+                BigDecimal carb = kcal.multiply(new BigDecimal("0.5"))
+                        .divide(new BigDecimal("4"), 1, RoundingMode.HALF_UP);
+                target.setCarbG(carb);
+
+                // Fat: (kcal * 0.3) / 9
+                BigDecimal fat = kcal.multiply(new BigDecimal("0.3"))
+                        .divide(new BigDecimal("9"), 1, RoundingMode.HALF_UP);
+                target.setFatG(fat);
+            }
+        });
+
+        return new DietLogDayResponse(date, meals, total, target);
     }
 
     public List<DietLogRangeDaySummary> getRange(Long userId, java.time.LocalDate start, java.time.LocalDate end) {

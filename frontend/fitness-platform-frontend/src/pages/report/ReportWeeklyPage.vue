@@ -3,251 +3,496 @@
     <el-card shadow="never" class="card">
       <template #header>
         <div class="h">
-          <div class="title">本周训练报告</div>
-
+          <div class="title">综合健康报告</div>
           <div class="actions">
             <el-date-picker
-              v-model="weekStart"
-              type="date"
+              v-model="dateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
               value-format="YYYY-MM-DD"
-              format="YYYY-MM-DD"
-              placeholder="选择周起始日(周一)"
-              style="width: 180px"
+              :shortcuts="shortcuts"
+              style="width: 260px"
+              @change="load"
             />
             <el-button :loading="loading" @click="load" plain>刷新</el-button>
+            <el-button @click="printReport" plain>打印/PDF</el-button>
+            <el-button @click="exportCsv" type="primary" plain>导出CSV</el-button>
           </div>
         </div>
       </template>
 
-      <el-skeleton v-if="loading" :rows="4" animated />
+      <el-skeleton v-if="loading" :rows="8" animated />
+      
+      <div v-else-if="!report" class="empty-state">
+        <el-empty description="暂无数据，请选择日期范围或添加记录" />
+      </div>
 
-      <template v-else>
-        <el-alert
-          v-if="!report"
-          type="info"
-          show-icon
-          title="暂无周报数据"
-          description="你可以先去“训练执行/饮食记录”提交一些数据，然后再回来刷新周报。"
-        />
-
-        <template v-else>
-          <!-- 关键指标 -->
-          <div class="kpi">
-            <div class="kpi-item">
-              <span>周区间</span>
-              <b>{{ report.weekStart }} ~ {{ report.weekEnd }}</b>
-            </div>
-            <div class="kpi-item">
-              <span>训练天数</span>
-              <b>{{ report.workoutDays }} 天</b>
-            </div>
-            <div class="kpi-item">
-              <span>周初体重</span>
-              <b>{{ report.weightStartKg }} kg</b>
-            </div>
-            <div class="kpi-item">
-              <span>周末体重</span>
-              <b>{{ report.weightEndKg }} kg</b>
-            </div>
+      <div v-else class="report-content">
+        <!-- 核心指标概览 -->
+        <div class="summary-row">
+          <div class="kpi-card">
+            <div class="label">总训练次数</div>
+            <div class="value">{{ report.summary.totalWorkouts }} 次</div>
           </div>
+          <div class="kpi-card">
+            <div class="label">总训练时长</div>
+            <div class="value">{{ report.summary.totalDurationMinutes }} 分钟</div>
+          </div>
+          <div class="kpi-card">
+            <div class="label">平均日摄入</div>
+            <div class="value">{{ report.summary.avgDailyKcalIntake }} kcal</div>
+          </div>
+          <div class="kpi-card">
+            <div class="label">训练消耗总热量</div>
+            <div class="value">{{ report.summary.totalTrainingKcal }} kcal</div>
+          </div>
+        </div>
 
-          <!-- 体重变化可视化 -->
-          <el-card shadow="never" class="subcard">
-            <div class="subhead">
-              <div class="subttl">体重变化</div>
-              <el-tag :type="deltaTagType" effect="plain">
-                {{ deltaText }}
-              </el-tag>
+        <el-tabs v-model="activeTab" class="report-tabs">
+          <!-- 1. 训练记录部分 -->
+          <el-tab-pane label="训练分析" name="training">
+            <div class="tab-content">
+              <!-- 图表区 -->
+              <div class="chart-row">
+                <el-card shadow="never" class="chart-card">
+                  <template #header>训练容量趋势</template>
+                  <div class="chart-container">
+                    <v-chart :option="trainingTrendOption" autoresize />
+                  </div>
+                </el-card>
+                <el-card shadow="never" class="chart-card">
+                  <template #header>训练部位分布</template>
+                  <div class="chart-container">
+                    <v-chart :option="bodyPartOption" autoresize />
+                  </div>
+                </el-card>
+              </div>
+
+              <!-- 列表区 -->
+              <el-card shadow="never" class="list-card">
+                <template #header>训练历史记录</template>
+                <el-table :data="report.trainingHistory" stripe style="width: 100%">
+                  <el-table-column prop="date" label="日期" width="120" sortable />
+                  <el-table-column label="训练部位/内容" min-width="180">
+                    <template #default="{ row }">
+                      <div class="tags">
+                        <el-tag v-for="p in row.bodyParts" :key="p" size="small" effect="plain">{{ p }}</el-tag>
+                      </div>
+                      <div class="sub-text" v-if="row.exerciseNames && row.exerciseNames.length">
+                        {{ row.exerciseNames.join(', ') }}
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="durationMinutes" label="时长(分)" width="100">
+                    <template #default="{ row }">{{ row.durationMinutes }} min</template>
+                  </el-table-column>
+                  <el-table-column prop="caloriesBurned" label="消耗(kcal)" width="120">
+                    <template #default="{ row }">{{ row.caloriesBurned }} kcal</template>
+                  </el-table-column>
+                  <el-table-column prop="volume" label="总容量(kg)" width="120" />
+                </el-table>
+              </el-card>
             </div>
+          </el-tab-pane>
 
-            <div class="weight-bar">
-              <div class="bar-row">
-                <div class="bar-label">周初</div>
-                <div class="bar-track">
-                  <div class="bar-fill" :style="{ width: startPct + '%' }"></div>
+          <!-- 2. 饮食记录部分 -->
+          <el-tab-pane label="饮食分析" name="diet">
+            <div class="tab-content">
+              <!-- 营养摄入概览 -->
+              <div class="nutrition-summary">
+                <div class="nut-item">
+                  <div class="nut-label">平均蛋白质</div>
+                  <div class="nut-val">{{ report.summary.avgProtein }}g</div>
+                  <el-progress :percentage="50" :format="() => ''" status="success" />
                 </div>
-                <div class="bar-val">{{ report.weightStartKg }} kg</div>
-              </div>
-
-              <div class="bar-row">
-                <div class="bar-label">周末</div>
-                <div class="bar-track">
-                  <div class="bar-fill" :style="{ width: endPct + '%' }"></div>
+                <div class="nut-item">
+                  <div class="nut-label">平均碳水</div>
+                  <div class="nut-val">{{ report.summary.avgCarb }}g</div>
+                  <el-progress :percentage="60" :format="() => ''" status="warning" />
                 </div>
-                <div class="bar-val">{{ report.weightEndKg }} kg</div>
+                <div class="nut-item">
+                  <div class="nut-label">平均脂肪</div>
+                  <div class="nut-val">{{ report.summary.avgFat }}g</div>
+                  <el-progress :percentage="30" :format="() => ''" status="exception" />
+                </div>
               </div>
-            </div>
 
-            <div class="insight">
-              <div class="insight-title">解读建议</div>
-              <div class="insight-text">
-                {{ insight }}
+              <div class="chart-row">
+                 <el-card shadow="never" class="chart-card">
+                  <template #header>热量摄入趋势</template>
+                  <div class="chart-container">
+                    <v-chart :option="dietTrendOption" autoresize />
+                  </div>
+                </el-card>
+                 <el-card shadow="never" class="chart-card">
+                  <template #header>三大营养素来源</template>
+                  <div class="chart-container">
+                    <v-chart :option="macroPieOption" autoresize />
+                  </div>
+                </el-card>
               </div>
-            </div>
-          </el-card>
 
-          <!-- 训练执行情况 -->
-          <el-card shadow="never" class="subcard">
-            <div class="subhead">
-              <div class="subttl">训练执行情况</div>
+              <el-card shadow="never" class="list-card">
+                <template #header>每日饮食明细</template>
+                <el-table :data="report.dietHistory" stripe style="width: 100%">
+                  <el-table-column prop="date" label="日期" width="120" sortable />
+                  <el-table-column prop="mealCount" label="餐数" width="80" />
+                  <el-table-column prop="kcal" label="热量(kcal)" width="120" sortable />
+                  <el-table-column prop="protein" label="蛋白质(g)" width="100" />
+                  <el-table-column prop="carb" label="碳水(g)" width="100" />
+                  <el-table-column prop="fat" label="脂肪(g)" width="100" />
+                </el-table>
+              </el-card>
             </div>
+          </el-tab-pane>
 
-            <el-progress
-              :percentage="workoutPct"
-              :stroke-width="14"
-              status="success"
-            />
-            <div class="muted" style="margin-top:10px;">
-              说明：这里的完成度 = 训练天数 / 计划每周训练天数（来自你的计划模块）。如果你还没设置计划，默认按 3 天展示。
+          <!-- 3. 综合展示 -->
+          <el-tab-pane label="综合报表" name="comprehensive">
+            <div class="tab-content">
+              <el-card shadow="never" class="chart-card full-width">
+                <template #header>热量平衡分析 (摄入 vs 消耗)</template>
+                <div class="chart-container large">
+                  <v-chart :option="balanceOption" autoresize />
+                </div>
+                <div class="insight-box">
+                  <p><strong>💡 分析建议：</strong></p>
+                  <p v-if="report.summary.avgDailyKcalIntake > report.summary.totalTrainingKcal + 2000">
+                    当前平均摄入热量较高，如果目标是减脂，建议控制饮食或增加有氧训练。
+                  </p>
+                  <p v-else-if="report.summary.avgDailyKcalIntake < 1200">
+                    热量摄入偏低，请注意保证基础代谢需求，避免肌肉流失。
+                  </p>
+                  <p v-else>
+                    热量收支相对平衡，请继续保持当前的训练与饮食节奏。
+                  </p>
+                </div>
+              </el-card>
             </div>
-          </el-card>
-        </template>
-      </template>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { apiGetWeeklyReport, type WeeklyReportResp } from '@/api/report'
-import { apiGetCurrentPlan } from '@/api/plan'
-import { getWeekStartMonday } from '@/utils/week'
+import { ref, onMounted, computed, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
+import { apiGetComprehensiveReport, type ComprehensiveReportResp } from '@/api/report'
+import { toYmd } from '@/utils/date'
+
+// ECharts
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart, BarChart, PieChart } from 'echarts/charts'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  TitleComponent,
+  DataZoomComponent
+} from 'echarts/components'
+
+use([
+  CanvasRenderer,
+  LineChart,
+  BarChart,
+  PieChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  TitleComponent,
+  DataZoomComponent
+])
 
 const loading = ref(false)
-const weekStart = ref<string>(getWeekStartMonday(new Date()))
-const report = ref<WeeklyReportResp | null>(null)
+const activeTab = ref('training')
+const report = ref<ComprehensiveReportResp | null>(null)
 
-// 用于“训练完成度”：来自 /api/plans/current.weeklyWorkoutDays
-const planWeeklyDays = ref<number>(3)
+// 默认最近30天
+const end = new Date()
+const start = new Date()
+start.setDate(start.getDate() - 29)
+const dateRange = ref<[string, string]>([toYmd(start), toYmd(end)])
 
-async function loadPlan() {
-  try {
-    const res = await apiGetCurrentPlan()
-    planWeeklyDays.value = Math.max(1, Number(res.data.data.weeklyWorkoutDays || 3))
-  } catch {
-    planWeeklyDays.value = 3
-  }
-}
+const shortcuts = [
+  { text: '最近一周', value: () => { const end = new Date(); const start = new Date(); start.setTime(start.getTime() - 3600 * 1000 * 24 * 6); return [start, end] } },
+  { text: '最近一月', value: () => { const end = new Date(); const start = new Date(); start.setTime(start.getTime() - 3600 * 1000 * 24 * 29); return [start, end] } },
+  { text: '最近三月', value: () => { const end = new Date(); const start = new Date(); start.setTime(start.getTime() - 3600 * 1000 * 24 * 90); return [start, end] } },
+]
 
 async function load() {
+  if (!dateRange.value || dateRange.value.length !== 2) return
   loading.value = true
   try {
-    const res = await apiGetWeeklyReport(weekStart.value)
+    const res = await apiGetComprehensiveReport(dateRange.value[0], dateRange.value[1])
     report.value = res.data.data
+  } catch (err: any) {
+    ElMessage.error(err.message || '加载报告失败')
   } finally {
     loading.value = false
   }
 }
 
-const delta = computed(() => {
-  if (!report.value) return 0
-  return Number(report.value.weightEndKg || 0) - Number(report.value.weightStartKg || 0)
-})
+function printReport() {
+  window.print()
+}
 
-const deltaText = computed(() => {
-  const d = delta.value
-  if (d > 0) return `本周体重 +${d.toFixed(1)} kg`
-  if (d < 0) return `本周体重 ${d.toFixed(1)} kg`
-  return '本周体重无变化'
-})
+function exportCsv() {
+  if (!report.value) return
 
-const deltaTagType = computed(() => {
-  const d = delta.value
-  if (d > 0) return 'warning'
-  if (d < 0) return 'success'
-  return 'info'
-})
+  const headers = ['Date', 'TotalSets', 'Duration(min)', 'TrainingKcal', 'DietKcal', 'Protein(g)', 'Carb(g)', 'Fat(g)']
+  const rows: any[] = []
 
-const insight = computed(() => {
-  if (!report.value) return ''
-  const d = delta.value
-  const days = report.value.workoutDays
+  // Get all unique dates
+  const dates = new Set<string>()
+  report.value.trainingHistory.forEach(x => dates.add(x.date))
+  report.value.dietHistory.forEach(x => dates.add(x.date))
+  const sortedDates = Array.from(dates).sort().reverse()
 
-  if (d < -0.3) {
-    return `体重下降比较明显（${d.toFixed(1)}kg）。如果你的目标是减脂，这是一个积极信号。建议继续关注蛋白摄入与训练强度，避免掉肌肉。训练天数：${days}天。`
+  for (const d of sortedDates) {
+    const t = report.value.trainingHistory.find(x => x.date === d)
+    const diet = report.value.dietHistory.find(x => x.date === d)
+
+    rows.push([
+      d,
+      t ? t.setCount : 0,
+      t ? t.durationMinutes : 0,
+      t ? t.caloriesBurned : 0,
+      diet ? diet.kcal : 0,
+      diet ? diet.protein : 0,
+      diet ? diet.carb : 0,
+      diet ? diet.fat : 0
+    ])
   }
-  if (d > 0.3) {
-    return `体重上升（+${d.toFixed(1)}kg）。如果你在增肌期，这是可能出现的正常波动；如果你在减脂期，建议检查饮食热量是否超标，或是否有盐分/水分导致的短期波动。训练天数：${days}天。`
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(r => r.join(','))
+  ].join('\n')
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', `report_${dateRange.value[0]}_${dateRange.value[1]}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+// --- Charts Options ---
+
+const trainingTrendOption = computed(() => {
+  if (!report.value) return {}
+  const data = [...report.value.trainingHistory].reverse() // chronological
+  return {
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['训练时长(min)', '总容量(kg)'] },
+    xAxis: { type: 'category', data: data.map(x => x.date.slice(5)) },
+    yAxis: [
+      { type: 'value', name: '时长', position: 'left' },
+      { type: 'value', name: '容量', position: 'right' }
+    ],
+    series: [
+      { name: '训练时长(min)', type: 'bar', data: data.map(x => x.durationMinutes), yAxisIndex: 0, itemStyle: { color: '#3b82f6' } },
+      { name: '总容量(kg)', type: 'line', data: data.map(x => x.volume), yAxisIndex: 1, smooth: true, itemStyle: { color: '#f59e0b' } }
+    ]
   }
-  return `体重变化不大（${d.toFixed(1)}kg），属于正常波动范围。建议保持训练稳定性，同时通过饮食记录观察热量与三大营养素结构。训练天数：${days}天。`
 })
 
-// 做一个简单可视化：把两条横条映射到同一刻度
-const startPct = computed(() => {
-  if (!report.value) return 0
-  const a = Number(report.value.weightStartKg || 0)
-  const b = Number(report.value.weightEndKg || 0)
-  const max = Math.max(a, b, 1)
-  return Math.round((a / max) * 100)
-})
-const endPct = computed(() => {
-  if (!report.value) return 0
-  const a = Number(report.value.weightStartKg || 0)
-  const b = Number(report.value.weightEndKg || 0)
-  const max = Math.max(a, b, 1)
-  return Math.round((b / max) * 100)
+const bodyPartOption = computed(() => {
+  if (!report.value) return {}
+  const map = new Map<string, number>()
+  report.value.trainingHistory.forEach(d => {
+    d.bodyParts.forEach(p => {
+      map.set(p, (map.get(p) || 0) + 1)
+    })
+  })
+  const data = Array.from(map.entries()).map(([name, value]) => ({ name, value }))
+  return {
+    tooltip: { trigger: 'item' },
+    legend: { bottom: 0 },
+    series: [
+      {
+        name: '训练部位',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+        data: data.length ? data : [{ name: '无数据', value: 0 }]
+      }
+    ]
+  }
 })
 
-const workoutPct = computed(() => {
-  if (!report.value) return 0
-  const total = Math.max(1, planWeeklyDays.value || 3)
-  const done = Math.max(0, report.value.workoutDays || 0)
-  return Math.min(100, Math.round((done / total) * 100))
+const dietTrendOption = computed(() => {
+  if (!report.value) return {}
+  const data = [...report.value.dietHistory].reverse()
+  return {
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: data.map(x => x.date.slice(5)) },
+    yAxis: { type: 'value', name: 'kcal' },
+    series: [
+      { name: '热量摄入', type: 'line', smooth: true, data: data.map(x => x.kcal), areaStyle: { opacity: 0.1 }, itemStyle: { color: '#10b981' } }
+    ]
+  }
 })
 
-onMounted(async () => {
-  await loadPlan()
-  await load()
+const macroPieOption = computed(() => {
+          if (!report.value) return {}
+          const s = report.value.summary
+          const data = [
+            { name: '蛋白质', value: s.avgProtein },
+            { name: '碳水', value: s.avgCarb },
+            { name: '脂肪', value: s.avgFat }
+          ]
+          return {
+            tooltip: { trigger: 'item' },
+            color: ['#3b82f6', '#10b981', '#f59e0b'],
+            series: [
+              {
+                type: 'pie',
+                radius: '60%',
+                data: data.some(x => x.value > 0) ? data : [{name:'无数据', value:0}],
+                label: { formatter: '{b}: {c}g ({d}%)' }
+              }
+            ]
+          }
+        })
+
+        const mealStackOption = computed(() => {
+          if (!report.value) return {}
+          const data = [...report.value.dietHistory].reverse()
+          const dates = data.map(x => x.date.slice(5))
+          
+          const getVal = (d: any, type: string) => (d.mealKcalBreakdown && d.mealKcalBreakdown[type]) || 0
+
+          return {
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            legend: { data: ['早餐', '午餐', '晚餐', '加餐'] },
+            xAxis: { type: 'category', data: dates },
+            yAxis: { type: 'value', name: 'kcal' },
+            series: [
+              { name: '早餐', type: 'bar', stack: 'total', data: data.map(x => getVal(x, '早餐')), itemStyle: { color: '#fbbf24' } },
+              { name: '午餐', type: 'bar', stack: 'total', data: data.map(x => getVal(x, '午餐')), itemStyle: { color: '#f87171' } },
+              { name: '晚餐', type: 'bar', stack: 'total', data: data.map(x => getVal(x, '晚餐')), itemStyle: { color: '#60a5fa' } },
+              { name: '加餐', type: 'bar', stack: 'total', data: data.map(x => getVal(x, '加餐')), itemStyle: { color: '#a78bfa' } }
+            ]
+          }
+        })
+
+const balanceOption = computed(() => {
+  if (!report.value) return {}
+  // Merge dates from both histories
+  const dateSet = new Set<string>()
+  report.value.trainingHistory.forEach(x => dateSet.add(x.date))
+  report.value.dietHistory.forEach(x => dateSet.add(x.date))
+  const dates = Array.from(dateSet).sort()
+  
+  const inData = dates.map(d => report.value?.dietHistory.find(x => x.date === d)?.kcal || 0)
+  const outData = dates.map(d => report.value?.trainingHistory.find(x => x.date === d)?.caloriesBurned || 0)
+
+  return {
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['摄入热量', '运动消耗'] },
+    xAxis: { type: 'category', data: dates.map(d => d.slice(5)) },
+    yAxis: { type: 'value' },
+    dataZoom: [{ type: 'inside' }, { type: 'slider' }],
+    series: [
+      { name: '摄入热量', type: 'line', data: inData, smooth: true, itemStyle: { color: '#10b981' } },
+      { name: '运动消耗', type: 'bar', data: outData, itemStyle: { color: '#ef4444' } }
+    ]
+  }
+})
+
+onMounted(() => {
+  load()
 })
 </script>
 
 <style scoped lang="scss">
-.page { display: flex; flex-direction: column; gap: 16px; }
-.card { border-radius: 18px; }
-.h { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.title { font-size: 18px; font-weight: 900; }
-.actions { display: flex; gap: 10px; align-items: center; }
-
-.kpi {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 12px;
+.page {
+  display: flex; flex-direction: column; gap: 16px;
+  /* Print optimization */
+  @media print {
+    .actions, .el-tabs__nav-wrap { display: none !important; }
+    .card { box-shadow: none; border: none; }
+  }
 }
-.kpi-item {
-  background: #f3f6fb;
-  border-radius: 14px;
-  padding: 14px;
+.h { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.title { font-size: 20px; font-weight: 800; color: var(--text-1); }
+.actions { display: flex; gap: 12px; align-items: center; }
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--surface-2);
+  padding: 16px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  .label { font-size: 13px; color: var(--text-2); }
+  .value { font-size: 24px; font-weight: 700; color: var(--text-1); }
 }
-.kpi-item span { color: var(--muted); font-size: 12px; }
-.kpi-item b { font-size: 18px; }
 
-.subcard { border-radius: 18px; margin-top: 12px; }
-.subhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.subttl { font-size: 16px; font-weight: 900; }
+.report-tabs :deep(.el-tabs__nav-wrap::after) { height: 1px; background-color: var(--border); }
 
-.weight-bar { display: flex; flex-direction: column; gap: 12px; }
-.bar-row { display: grid; grid-template-columns: 60px 1fr 90px; gap: 12px; align-items: center; }
-.bar-label { color: var(--muted); font-weight: 700; }
-.bar-track {
-  height: 12px;
-  background: #eef2f7;
-  border-radius: 999px;
-  overflow: hidden;
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 16px;
 }
-.bar-fill {
-  height: 100%;
-  background: #409eff;
-  border-radius: 999px;
+
+.chart-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 16px;
 }
-.bar-val { text-align: right; font-weight: 800; }
+.chart-card {
+  border-radius: 12px;
+  .chart-container {
+    height: 300px;
+    &.large { height: 400px; }
+  }
+}
+.list-card { border-radius: 12px; }
 
-.insight { margin-top: 14px; padding: 12px; background: #f8fafc; border-radius: 14px; }
-.insight-title { font-weight: 900; margin-bottom: 6px; }
-.insight-text { color: #374151; line-height: 1.7; }
+.tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+.sub-text { font-size: 12px; color: var(--text-2); line-height: 1.4; }
+.text-muted { color: var(--text-2); font-size: 12px; }
 
-.muted { color: var(--muted); font-size: 12px; }
+.nutrition-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 8px;
+}
+.nut-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  .nut-label { font-size: 14px; color: var(--text-2); }
+  .nut-val { font-size: 20px; font-weight: 600; }
+}
+
+.insight-box {
+  margin-top: 16px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 16px;
+  color: #0369a1;
+  font-size: 14px;
+  line-height: 1.6;
+}
 </style>

@@ -30,14 +30,10 @@
         <span>训练报告</span>
       </el-menu-item>
 
-      <el-sub-menu index="plan">
-        <template #title>
-          <el-icon><Calendar /></el-icon>
-          <span>计划</span>
-        </template>
-        <el-menu-item index="/plan/today">今日计划</el-menu-item>
-        <el-menu-item index="/plan/calendar">日历计划</el-menu-item>
-      </el-sub-menu>
+      <el-menu-item index="/plan">
+        <el-icon><Calendar /></el-icon>
+        <span>我的计划</span>
+      </el-menu-item>
 
       <el-menu-item index="/body/trend">
         <el-icon><TrendCharts /></el-icon>
@@ -45,7 +41,7 @@
       </el-menu-item>
 
       <div class="menu-bottom">
-        <el-menu-item index="/settings">
+        <el-menu-item index="/settings/profile">
           <el-icon><Setting /></el-icon>
           <span>设置</span>
         </el-menu-item>

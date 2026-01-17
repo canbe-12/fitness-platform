@@ -1,5 +1,6 @@
 package com.example.fitnessplatformbackend.controller;
 
+import com.example.fitnessplatformbackend.dto.common.ApiResponse;
 import com.example.fitnessplatformbackend.dto.diet.*;
 import com.example.fitnessplatformbackend.service.DietLogService;
 import com.example.fitnessplatformbackend.service.SecurityCurrentUserService;
@@ -19,53 +20,54 @@ public class DietLogController {
     private final SecurityCurrentUserService currentUser;
 
     @PostMapping
-    public DietLogCreateResponse create(@Valid @RequestBody DietLogCreateRequest req) {
+    public ApiResponse<DietLogCreateResponse> create(@Valid @RequestBody DietLogCreateRequest req) {
         Long userId = currentUser.getCurrentUserId();
-        return dietLogService.createOrGet(userId, req);
+        return ApiResponse.ok(dietLogService.createOrGet(userId, req));
     }
 
     @GetMapping("/day")
-    public DietLogDayResponse day(@RequestParam("date") LocalDate date) {
+    public ApiResponse<DietLogDayResponse> day(@RequestParam("date") LocalDate date) {
         Long userId = currentUser.getCurrentUserId();
-        return dietLogService.getDay(userId, date);
+        return ApiResponse.ok(dietLogService.getDay(userId, date));
     }
 
     @GetMapping("/range")
-    public List<DietLogRangeDaySummary> range(@RequestParam("start") LocalDate start,
+    public ApiResponse<List<DietLogRangeDaySummary>> range(@RequestParam("start") LocalDate start,
                                               @RequestParam("end") LocalDate end) {
         Long userId = currentUser.getCurrentUserId();
-        return dietLogService.getRange(userId, start, end);
+        return ApiResponse.ok(dietLogService.getRange(userId, start, end));
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id) {
         Long userId = currentUser.getCurrentUserId();
         dietLogService.delete(userId, id);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/{id}")
-    public DietLogDetailResponse detail(@PathVariable Long id) {
+    public ApiResponse<DietLogDetailResponse> detail(@PathVariable Long id) {
         Long userId = currentUser.getCurrentUserId();
-        return dietLogService.getDetail(userId, id);
+        return ApiResponse.ok(dietLogService.getDetail(userId, id));
     }
 
     @PutMapping("/{id}")
-    public DietLogDetailResponse update(@PathVariable Long id, @Valid @RequestBody DietLogUpdateRequest req) {
+    public ApiResponse<DietLogDetailResponse> update(@PathVariable Long id, @Valid @RequestBody DietLogUpdateRequest req) {
         Long userId = currentUser.getCurrentUserId();
-        return dietLogService.updateNote(userId, id, req.getNote());
+        return ApiResponse.ok(dietLogService.updateNote(userId, id, req.getNote()));
     }
 
     @GetMapping("/nutrition/day")
-    public NutritionSnapshotDto nutritionDay(@RequestParam("date") LocalDate date) {
+    public ApiResponse<NutritionSnapshotDto> nutritionDay(@RequestParam("date") LocalDate date) {
         Long userId = currentUser.getCurrentUserId();
-        return dietLogService.getNutritionDay(userId, date);
+        return ApiResponse.ok(dietLogService.getNutritionDay(userId, date));
     }
 
     @GetMapping("/nutrition/range")
-    public List<DietNutritionRangeDayResponse> nutritionRange(@RequestParam("start") LocalDate start,
+    public ApiResponse<List<DietNutritionRangeDayResponse>> nutritionRange(@RequestParam("start") LocalDate start,
                                                               @RequestParam("end") LocalDate end) {
         Long userId = currentUser.getCurrentUserId();
-        return dietLogService.getNutritionRange(userId, start, end);
+        return ApiResponse.ok(dietLogService.getNutritionRange(userId, start, end));
     }
 
 

@@ -125,15 +125,60 @@
         <el-card shadow="never" class="sum-card">
           <div class="sum-title">当日营养汇总（后端统计）</div>
           <div v-if="dayNutrition" class="sum-grid">
-            <div class="kv"><span>kcal</span><b>{{ dayNutrition.kcal }}</b></div>
-            <div class="kv"><span>蛋白(g)</span><b>{{ dayNutrition.proteinG }}</b></div>
-            <div class="kv"><span>碳水(g)</span><b>{{ dayNutrition.carbG }}</b></div>
-            <div class="kv"><span>脂肪(g)</span><b>{{ dayNutrition.fatG }}</b></div>
+            <div class="kv">
+              <span>kcal</span>
+              <b>{{ dayNutrition.kcal }}</b>
+              <small v-if="nutritionTarget?.kcal" class="target">/ {{ nutritionTarget.kcal }}</small>
+            </div>
+            <div class="kv">
+              <span>蛋白(g)</span>
+              <b>{{ dayNutrition.proteinG }}</b>
+              <small v-if="nutritionTarget?.proteinG" class="target">/ {{ nutritionTarget.proteinG }}</small>
+            </div>
+            <div class="kv">
+              <span>碳水(g)</span>
+              <b>{{ dayNutrition.carbG }}</b>
+              <small v-if="nutritionTarget?.carbG" class="target">/ {{ nutritionTarget.carbG }}</small>
+            </div>
+            <div class="kv">
+              <span>脂肪(g)</span>
+              <b>{{ dayNutrition.fatG }}</b>
+              <small v-if="nutritionTarget?.fatG" class="target">/ {{ nutritionTarget.fatG }}</small>
+            </div>
           </div>
-          <el-empty v-else description="点击“刷新当日营养汇总”加载" />
+          <el-empty v-else description="暂无数据" />
         </el-card>
       </div>
     </el-card>
+
+    <!-- Food Selection Dialog -->
+    <el-dialog v-model="foodDialogVisible" title="选择食物" width="600px" append-to-body>
+      <div class="food-search">
+        <el-input
+          v-model="foodKeyword"
+          placeholder="搜索食物名称..."
+          clearable
+          @keyup.enter="searchFood"
+          style="width: 300px"
+        >
+          <template #append>
+            <el-button @click="searchFood" :loading="foodLoading">搜索</el-button>
+          </template>
+        </el-input>
+      </div>
+      
+      <el-table :data="foodList" v-loading="foodLoading" style="width: 100%; margin-top: 12px;" max-height="400">
+        <el-table-column prop="foodName" label="名称" />
+        <el-table-column prop="unit" label="单位" width="100" />
+        <el-table-column prop="kcal" label="热量" width="80" />
+        <el-table-column prop="proteinG" label="蛋白" width="80" />
+        <el-table-column label="操作" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="selectFood(row)">选择</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -149,6 +194,7 @@ import {
   type DietLogItemReq,
   type DietLogResp,
   type MealType,
+  type DietNutritionSnapshot,
 } from '@/api/diet'
 import { newClientId } from '@/utils/id'
 import { toYmd } from '@/utils/date'
@@ -179,7 +225,146 @@ const items = reactive<DietLogItemReq[]>([
 ])
 
 const currentId = ref<number | null>(null) // 当前 date+meal 对应的 dietLog id（用于 PUT）
-const dayNutrition = ref<any>(null)
+const dayNutrition = ref<DietNutritionSnapshot | null>(null)
+const nutritionTarget = ref<DietNutritionSnapshot | null>(null)
+
+// Food Dialog
+const foodDialogVisible = ref(false)
+const foodKeyword = ref('')
+const foodList = ref<FoodResp[]>([])
+const foodLoading = ref(false)
+
+async function openFoodDialog() {
+  foodDialogVisible.value = true
+  foodKeyword.value = ''
+  foodList.value = []
+  // Initial load
+  await searchFood()
+}
+
+async function searchFood() {
+  foodLoading.value = true
+  try {
+    const res = await apiGetFoods({ keyword: foodKeyword.value, page: 1, size: 20 })
+    foodList.value = normalizeFoodList(unwrapApi<any>(res))
+  } finally {
+    foodLoading.value = false
+  }
+}
+
+function normalizeFoodList(list: any[]): FoodResp[] {
+  if (!Array.isArray(list)) return []
+  return list.map(x => ({
+    id: x.id,
+    foodName: x.foodName,
+    brand: x.brand,
+    unit: x.unit,
+    kcal: x.kcal,
+    proteinG: x.proteinG,
+    carbG: x.carbG,
+    fatG: x.fatG,
+    fiberG: x.fiberG,
+    sodiumMg: x.sodiumMg
+  }))
+}
+
+// Update a row with selected food data
+function updateRowWithFood(row: ExtendedItem, food: FoodResp) {
+  row.foodId = food.id
+  row.foodName = food.foodName
+  row.brand = food.brand || ''
+  
+  // Smart Unit Logic
+  // If unit is "100g" or "100ml", we set unit to "g"/"ml" and amount to 100.
+  // And we record the base values.
+  let baseAmount = 1
+  let targetUnit = food.unit || 'g'
+  
+  if (food.unit === '100g') {
+    targetUnit = 'g'
+    baseAmount = 100
+  } else if (food.unit === '100ml') {
+    targetUnit = 'ml'
+    baseAmount = 100
+  } else {
+    // For other units (e.g. "碗(150g)", "个"), we assume the nutrition is PER that unit.
+    // So base amount is 1.
+    baseAmount = 1
+  }
+
+  row.unit = targetUnit
+  row.amount = baseAmount
+  
+  // Set nutrition values
+  row.kcal = Math.round(food.kcal)
+  row.proteinG = Number(food.proteinG || 0)
+  row.carbG = Number(food.carbG || 0)
+  row.fatG = Number(food.fatG || 0)
+  row.fiberG = Number(food.fiberG || 0)
+  row.sodiumMg = Number(food.sodiumMg || 0)
+
+  // Save base for auto-calc
+  row._base = {
+    amount: baseAmount,
+    kcal: row.kcal,
+    proteinG: row.proteinG,
+    carbG: row.carbG,
+    fatG: row.fatG
+  }
+}
+
+function selectFood(food: FoodResp) {
+  // Add new row
+  const row: ExtendedItem = {
+    foodName: '', brand: '', amount: 0, unit: 'g',
+    kcal: 0, proteinG: 0, carbG: 0, fatG: 0
+  }
+  items.push(row)
+  updateRowWithFood(row, food)
+  foodDialogVisible.value = false
+}
+
+// Autocomplete helpers
+const foodSuggestions = async (qs: string, cb: any) => {
+  if (!qs) {
+    cb([])
+    return
+  }
+  const res = await apiGetFoods({ keyword: qs, page: 1, size: 10 })
+  const list = normalizeFoodList(unwrapApi<any>(res))
+  // map to value/link for element? No, element autocomplete needs `value` property to show text?
+  // Or we can use custom template. We used custom template in previous code?
+  // Looking at template: <el-autocomplete ... @select="(it) => applyFoodToRow(row, it.food)" />
+  // We need to return objects with `value` (for display) and `food` (data).
+  const suggestions = list.map(f => ({
+    value: f.foodName + (f.brand ? ` (${f.brand})` : ''),
+    food: f
+  }))
+  cb(suggestions)
+}
+
+function applyFoodToRow(row: ExtendedItem, food: FoodResp) {
+  updateRowWithFood(row, food)
+}
+
+// Watch for amount changes to auto-calc nutrition
+watch(() => items, (newItems) => {
+  for (const row of newItems) {
+    if (row._base && row.amount !== row._base.amount) {
+      // Calculate ratio
+      // Avoid division by zero
+      if (row._base.amount <= 0) continue
+      
+      const ratio = row.amount / row._base.amount
+      
+      row.kcal = Math.round(row._base.kcal * ratio)
+      row.proteinG = Number((row._base.proteinG * ratio).toFixed(1))
+      row.carbG = Number((row._base.carbG * ratio).toFixed(1))
+      row.fatG = Number((row._base.fatG * ratio).toFixed(1))
+      // Optional: Update others if needed
+    }
+  }
+}, { deep: true })
 
 function addRow() {
   items.push({ foodName: '', brand: '', amount: 0, unit: 'g', kcal: 0, proteinG: 0, carbG: 0, fatG: 0 })
@@ -204,55 +389,12 @@ const sum = computed(() => {
   }
 })
 
-function normalizeFoodList(data: any): FoodResp[] {
-  if (!data) return []
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data.records)) return data.records
-  if (Array.isArray(data.list)) return data.list
-  return []
-}
-
-async function queryFoods(keyword: string): Promise<FoodResp[]> {
-  const res = await apiGetFoods({ keyword, page: 1, size: 20 })
-  const data = unwrapApi<any>(res)
-  return normalizeFoodList(data)
-}
-
-async function foodSuggestions(queryString: string, cb: (items: any[]) => void) {
-  const q = (queryString || '').trim()
-  if (!q) return cb([])
-  try {
-    const list = await queryFoods(q)
-    cb(
-      list.map(f => ({
-        value: f.foodName,
-        food: f,
-      })),
-    )
-  } catch {
-    cb([])
-  }
-}
-
-function applyFoodToRow(row: any, food: FoodResp) {
-  row.foodId = food.id
-  row.foodName = food.foodName
-  row.brand = food.brand || row.brand || ''
-  row.unit = food.unit || row.unit || 'g'
-  row.kcal = Number(food.kcal || 0)
-  row.proteinG = Number(food.proteinG || 0)
-  row.carbG = Number(food.carbG || 0)
-  row.fatG = Number(food.fatG || 0)
-  row.fiberG = Number(food.fiberG || 0)
-  row.sodiumMg = Number(food.sodiumMg || 0)
-}
-
 
 function applyLogToForm(log: DietLogResp) {
   currentId.value = log.id
   items.splice(0, items.length)
   for (const it of log.items || []) {
-    items.push({
+    const row: ExtendedItem = {
       foodId: it.foodId,
       foodName: it.foodName,
       brand: it.brand || '',
@@ -264,7 +406,12 @@ function applyLogToForm(log: DietLogResp) {
       fatG: Number(it.fatG || 0),
       fiberG: Number(it.fiberG || 0),
       sodiumMg: Number(it.sodiumMg || 0),
-    })
+    }
+    // If we want to enable auto-calc for existing items, we would need to know their base values.
+    // But we don't store base values in DB.
+    // We could try to fetch food info, but that's too heavy.
+    // So for loaded items, auto-calc is disabled unless user re-selects food.
+    items.push(row)
   }
   if (items.length === 0) addRow()
 }
@@ -275,45 +422,58 @@ function resetToNew() {
   addRow()
 }
 
-async function loadExistingForDateMeal() {
+// Unified load function to avoid duplicate requests
+async function loadDayData() {
   const date = toYmd(form.date)
   loading.value = true
+  loadingNutrition.value = true
+  
   try {
-    const { list } = await apiGetDietLogsByDay(date)
-    const hit = list.find(x => x.mealType === form.mealType)
-    if (hit) {
-      applyLogToForm(hit)
+    // 1. Get Day Summary (includes meals list, day total, and target)
+    const res = await apiGetDietLogsByDay(date)
+    const data = unwrapApi<DietLogDayResp>(res)
+    
+    if (data) {
+      // Update Nutrition Summary
+      dayNutrition.value = data.dayTotal
+      nutritionTarget.value = data.target || null
+      
+      // 2. Check for existing meal
+      const hit = (data.meals || []).find(x => x.mealType === form.mealType)
+      if (hit) {
+        // Fetch full detail
+        const detailRes = await apiGetDietLogById(hit.id)
+        const detail = unwrapApi<DietLogResp>(detailRes)
+        applyLogToForm(detail)
+      } else {
+        resetToNew()
+      }
     } else {
       resetToNew()
+      dayNutrition.value = null
     }
   } catch (e: any) {
+    console.error(e)
     resetToNew()
   } finally {
     loading.value = false
-  }
-}
-
-async function loadTodayNutrition() {
-  const date = toYmd(form.date)
-  loadingNutrition.value = true
-  try {
-    const res = await apiGetNutritionDay(date)
-    dayNutrition.value = res.data.data
-  } finally {
     loadingNutrition.value = false
   }
 }
 
+// Deprecated separate loaders (kept for compatibility if referenced, but mapped to new logic)
+async function loadTodayNutrition() {
+  // no-op, handled by loadDayData
+}
+
 async function reload() {
-  await loadExistingForDateMeal()
-  await loadTodayNutrition()
+  await loadDayData()
 }
 
 watch(
   () => [toYmd(form.date), form.mealType],
   async () => {
-    await loadExistingForDateMeal()
-    await loadTodayNutrition()
+    await loadDayData()
   },
   { immediate: true },
 )

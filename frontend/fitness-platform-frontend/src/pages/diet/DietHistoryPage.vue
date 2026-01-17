@@ -128,38 +128,71 @@ const range = ref<[string, string]>([toYmd(new Date()), toYmd(new Date())])
 // rows 用一个“宽松结构”承载 day/range 的返回
 const rows = ref<any[]>([])
 
-function mealLabel(m: MealType) {
+function mealLabel(m: MealType | string) {
   const map: Record<string, string> = {
     BREAKFAST: '早餐',
     LUNCH: '午餐',
     DINNER: '晚餐',
     SNACK: '加餐',
+    ALL: '全天汇总',
   }
   return map[m] || m
 }
+
+// Removed sumItems as it's no longer needed for 'day' mode since we use summary from backend
+// But 'range' mode uses apiGetDietLogsRange which might still return logs with items?
+// Let's check apiGetDietLogsRange. It returns DietLogRangeDaySummary? 
+// No, apiGetDietLogsRange calls /api/diet-logs/range which returns List<DietLogRangeDaySummary>.
+// DietLogRangeDaySummary does NOT have items.
+// So 'range' mode also doesn't need sumItems.
+// However, the old code seemed to think it might.
+// Let's just keep sumItems helper if it exists, or remove if I deleted it.
+// I replaced the block that used sumItems. 
+// Wait, I only replaced the 'day' block.
+// The 'range' block:
+// rows.value = (res.data.data || []).map((x: any) => ({ ... kcal: x.kcal ... }))
+// It seems range response already has kcal.
 
 async function load() {
   loading.value = true
   try {
     if (mode.value === 'day') {
       const res = await apiGetDietLogsByDay(day.value)
-      // day 可能返回 DietLogResp[]（含 items），也可能是扁平 summary；都兼容
-      rows.value = (res.data.data || []).map((x: any) => ({
+      // res.data.data is DietLogDayResp object
+      const data = res.data.data as any
+      const list = data?.meals || []
+      
+      rows.value = list.map((x: any) => ({
         id: x.id,
-        date: x.date,
+        date: data.date || day.value,
         mealType: x.mealType,
-        kcal: x.kcal ?? sumItems(x.items).kcal,
-        proteinG: x.proteinG ?? sumItems(x.items).proteinG,
-        carbG: x.carbG ?? sumItems(x.items).carbG,
-        fatG: x.fatG ?? sumItems(x.items).fatG,
+        kcal: x.kcal,
+        proteinG: x.proteinG,
+        carbG: x.carbG,
+        fatG: x.fatG,
       }))
     } else {
       const [startDate, endDate] = range.value
-      const res = await apiGetDietLogsRange(startDate, endDate)
-      rows.value = (res.data.data || []).map((x: any) => ({
-        id: x.id,
+      // apiGetDietLogsRange expects object param and returns { raw, list }
+      // But wait, the previous code called it with (startDate, endDate).
+      // Let's check api/diet.ts definition again.
+      // export async function apiGetDietLogsRange(params: { start: string; end: string })
+      
+      const { list } = await apiGetDietLogsRange({ start: startDate, end: endDate })
+      
+      // list is DietLogResp[] or similar? 
+      // Backend /range returns DietLogRangeDaySummary which has date, kcal, etc.
+      // But no ID, no mealType. It's a daily summary.
+      // The table expects mealType?
+      // If range mode shows daily summary, we should adapt the table or rows.
+      // The table columns: date, mealType, nutrition, actions.
+      // If it's range summary, mealType is meaningless (it's "ALL").
+      // And we can't "openDetail" or "del" a summary row easily (unless we open that day).
+      
+      rows.value = list.map((x: any) => ({
+        id: 0, // No specific log ID
         date: x.date,
-        mealType: x.mealType,
+        mealType: 'ALL', // Special marker
         kcal: x.kcal,
         proteinG: x.proteinG,
         carbG: x.carbG,

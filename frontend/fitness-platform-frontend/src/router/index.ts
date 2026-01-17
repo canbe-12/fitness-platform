@@ -32,12 +32,11 @@ const routes: RouteRecordRaw[] = [
 
       { path: 'report/weekly', name: 'ReportWeekly', component: () => import('@/pages/report/ReportWeeklyPage.vue') },
 
-      { path: 'plan', redirect: '/plan/today' },
-      { path: 'plan/today', name: 'PlanToday', component: () => import('@/pages/plan/PlanTodayPage.vue') },
-      { path: 'plan/calendar', name: 'PlanCalendar', component: () => import('@/pages/plan/PlanCalendarPage.vue') },
+      { path: 'plan', name: 'Plan', component: () => import('@/pages/plan/PlanPage.vue') },
 
       { path: 'body/trend', name: 'BodyTrend', component: () => import('@/pages/body/BodyTrendPage.vue') },
 
+      { path: 'settings', redirect: '/settings/profile' },
       { path: 'settings/profile', name: 'Settings', component: () => import('@/pages/settings/SettingsPage.vue') },
     ],
   },
