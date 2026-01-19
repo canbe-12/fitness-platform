@@ -45,7 +45,6 @@ fitness-platform/
 │       ├── src/                # Vue 源码 (api, components, pages, stores...)
 │       ├── package.json        # NPM 依赖配置
 │       └── vite.config.ts      # Vite 配置
-├── PROJECT_DOCUMENTATION.md    # 项目详细技术文档
 └── README.md                   # 项目说明文件
 ```
 
@@ -94,3 +93,4 @@ fitness-platform/
     npm run dev
     ```
     *前端页面将访问地址通常为 `http://localhost:5173`*
+
